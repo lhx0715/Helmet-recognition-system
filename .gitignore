@@ -1,0 +1,19 @@
+# Python cache and local environments
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Backend runtime uploads
+backend/uploads/
+
+# Frontend dependencies and build cache
+frontend/node_modules/
+frontend/dist/
+
+# Local runtime logs and pid files
+output/runtime/
+
+# Local assignment source document
+/软件测试与质量管理作业要求.docx
