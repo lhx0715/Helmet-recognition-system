@@ -4,10 +4,12 @@ import './ImageUpload.css'
 function ImageUpload({ onUpload, disabled }) {
   const fileInputRef = useRef(null)
   const [preview, setPreview] = useState(null)
+  const [selectedName, setSelectedName] = useState('')
 
   const handleFileSelect = (event) => {
     const file = event.target.files?.[0]
     if (file) {
+      setSelectedName(file.name)
       // 显示预览
       const reader = new FileReader()
       reader.onload = (e) => {
@@ -26,7 +28,7 @@ function ImageUpload({ onUpload, disabled }) {
 
   return (
     <div className="upload-container">
-      <div className="upload-area" onClick={handleClick}>
+      <button className="upload-area" type="button" onClick={handleClick} disabled={disabled}>
         <input
           ref={fileInputRef}
           type="file"
@@ -36,16 +38,17 @@ function ImageUpload({ onUpload, disabled }) {
           style={{ display: 'none' }}
         />
         <div className="upload-content">
-          <div className="upload-icon">📸</div>
-          <h3>Click to Upload Image</h3>
-          <p>Supported formats: JPG, PNG, GIF, WebP</p>
+          <div className="upload-icon" aria-hidden="true">IMG</div>
+          <h3>{disabled ? '正在检测图片' : '选择或更换检测图片'}</h3>
+          <p>支持 JPG、PNG、GIF、WebP；测试异常场景时可上传非图片或空文件。</p>
+          {selectedName && <span className="file-name">{selectedName}</span>}
         </div>
-      </div>
+      </button>
 
       {preview && (
         <div className="preview-container">
-          <h4>Image Preview:</h4>
-          <img src={preview} alt="Preview" className="preview-image" />
+          <h4>原图预览</h4>
+          <img src={preview} alt="上传图片预览" className="preview-image" />
         </div>
       )}
     </div>

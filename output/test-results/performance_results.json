@@ -1,0 +1,50 @@
+[
+  {
+    "variant": "320x240",
+    "width": 320,
+    "height": 240,
+    "avg_latency_ms": 38.99,
+    "fps": 25.65,
+    "detection_count": 4
+  },
+  {
+    "variant": "640x480",
+    "width": 640,
+    "height": 480,
+    "avg_latency_ms": 32.99,
+    "fps": 30.31,
+    "detection_count": 4
+  },
+  {
+    "variant": "1280x720",
+    "width": 1280,
+    "height": 720,
+    "avg_latency_ms": 31.58,
+    "fps": 31.67,
+    "detection_count": 4
+  },
+  {
+    "variant": "640x480_dark",
+    "width": 640,
+    "height": 480,
+    "avg_latency_ms": 34.68,
+    "fps": 28.84,
+    "detection_count": 5
+  },
+  {
+    "variant": "640x480_bright",
+    "width": 640,
+    "height": 480,
+    "avg_latency_ms": 35.92,
+    "fps": 27.84,
+    "detection_count": 4
+  },
+  {
+    "variant": "640x480_blur",
+    "width": 640,
+    "height": 480,
+    "avg_latency_ms": 32.47,
+    "fps": 30.79,
+    "detection_count": 4
+  }
+]

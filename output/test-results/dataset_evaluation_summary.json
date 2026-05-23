@@ -1,0 +1,38 @@
+{
+  "dataset": "C:\\Users\\Aopex\\Documents\\学业\\2502软件测试\\Helmet-recognition-system\\test-data\\helmet-detection-kaggle",
+  "images_evaluated": 764,
+  "ground_truth_objects": 1451,
+  "predicted_objects": 1571,
+  "true_positive": 1128,
+  "false_positive": 443,
+  "false_negative": 323,
+  "precision": 0.718,
+  "recall": 0.7774,
+  "f1": 0.7465,
+  "conf_threshold": 0.3,
+  "match_iou_threshold": 0.5,
+  "total_seconds": 41.39,
+  "avg_latency_ms": 32.34,
+  "per_class": {
+    "With Helmet": {
+      "ground_truth": 962,
+      "predicted": 1040,
+      "true_positive": 809,
+      "false_positive": 231,
+      "false_negative": 153,
+      "precision": 0.7779,
+      "recall": 0.841,
+      "f1": 0.8082
+    },
+    "Without Helmet": {
+      "ground_truth": 489,
+      "predicted": 531,
+      "true_positive": 319,
+      "false_positive": 212,
+      "false_negative": 170,
+      "precision": 0.6008,
+      "recall": 0.6524,
+      "f1": 0.6255
+    }
+  }
+}

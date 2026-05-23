@@ -2,6 +2,17 @@ import { useState } from 'react'
 import ImageUpload from './components/ImageUpload'
 import './App.css'
 
+const classLabels = {
+  helmet: '佩戴头盔',
+  no_helmet: '未佩戴头盔',
+  person: '骑手/人员',
+  head: '头部'
+}
+
+function formatClassName(name) {
+  return classLabels[name?.toLowerCase()] || name
+}
+
 function App() {
   const [response, setResponse] = useState(null)
   const [error, setError] = useState(null)
@@ -29,13 +40,14 @@ function App() {
       })
 
       if (!res.ok) {
-        throw new Error(`HTTP error! status: ${res.status}`)
+        const errorBody = await res.json().catch(() => null)
+        throw new Error(errorBody?.detail || `请求失败，状态码：${res.status}`)
       }
 
       const data = await res.json()
       setResponse(data)
     } catch (err) {
-      setError(err.message || 'An error occurred during upload')
+      setError(err.message || '上传检测过程中发生错误')
     } finally {
       setLoading(false)
     }
@@ -44,11 +56,17 @@ function App() {
   return (
     <div className="app">
       <div className="container">
-        <h1>🎓 Helmet Detection System</h1>
+        <header className="app-header">
+          <div>
+            <p className="eyebrow">软件测试与质量管理课程原型</p>
+            <h1>电动车骑手头盔检测系统</h1>
+          </div>
+          <div className="api-status">FastAPI / YOLOv8</div>
+        </header>
         
         <div className="controls">
           <div className="control-group">
-            <label>Confidence Threshold: <span>{confThreshold.toFixed(2)}</span></label>
+            <label>置信度阈值 <span>{confThreshold.toFixed(2)}</span></label>
             <input 
               type="range" 
               min="0.1" 
@@ -60,7 +78,7 @@ function App() {
             />
           </div>
           <div className="control-group">
-            <label>IOU Threshold: <span>{iouThreshold.toFixed(2)}</span></label>
+            <label>IOU 阈值 <span>{iouThreshold.toFixed(2)}</span></label>
             <input 
               type="range" 
               min="0.1" 
@@ -77,28 +95,28 @@ function App() {
 
         {loading && (
           <div className="status loading">
-            ⏳ Processing...
+            正在调用模型检测，请稍候...
           </div>
         )}
 
         {error && (
           <div className="status error">
-            ❌ Error: {error}
+            检测失败：{error}
           </div>
         )}
 
         {response && (
           <div className="response">
             <div className="result-header">
-              <h2>Detection Results</h2>
+              <h2>检测结果</h2>
               <div className="stats">
                 <div className="stat">
-                  <span className="label">Total Objects:</span>
+                  <span className="label">目标总数</span>
                   <span className="value">{response.detection_count}</span>
                 </div>
                 {response.classes && Object.entries(response.classes).map(([className, count]) => (
                   <div key={className} className={`stat ${className.toLowerCase()}`}>
-                    <span className="label">{className}:</span>
+                    <span className="label">{formatClassName(className)}</span>
                     <span className="value">{count}</span>
                   </div>
                 ))}
@@ -107,31 +125,33 @@ function App() {
 
             {response.image_base64 && (
               <div className="result-image">
-                <h3>Annotated Image (Green=Helmet, Red=No Helmet):</h3>
+                <h3>标注图片</h3>
                 <img 
                   src={`data:image/jpeg;base64,${response.image_base64}`} 
-                  alt="Detection Result" 
+                  alt="头盔检测标注结果"
                 />
               </div>
             )}
 
             <div className="detections-list">
-              <h3>Detection Details:</h3>
+              <h3>检测明细</h3>
               <div className="detections-container">
-                {response.detections && response.detections.map((detection, idx) => (
+                {response.detections?.length > 0 ? response.detections.map((detection, idx) => (
                   <div 
                     key={idx} 
                     className={`detection-item ${detection.class.toLowerCase()}`}
                   >
-                    <div className="detection-class">{detection.class}</div>
+                    <div className="detection-class">{formatClassName(detection.class)}</div>
                     <div className="detection-confidence">
-                      Confidence: {(detection.confidence * 100).toFixed(1)}%
+                      置信度：{(detection.confidence * 100).toFixed(1)}%
                     </div>
                     <div className="detection-bbox">
-                      Bbox: ({detection.bbox.x1}, {detection.bbox.y1}) - ({detection.bbox.x2}, {detection.bbox.y2})
+                      坐标：({detection.bbox.x1}, {detection.bbox.y1}) - ({detection.bbox.x2}, {detection.bbox.y2})
                     </div>
                   </div>
-                ))}
+                )) : (
+                  <div className="empty-result">未检测到目标，建议更换清晰图片或降低置信度阈值。</div>
+                )}
               </div>
             </div>
           </div>

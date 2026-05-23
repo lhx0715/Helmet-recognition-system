@@ -1,474 +1,239 @@
-# 🎓 头盔识别系统 - 全栈项目
+# 电动车骑手头盔检测系统
 
-一个基础的全栈项目框架，包含 FastAPI 后端和 React Vite 前端。
+本项目是“软件测试与质量管理”课程作业原型：基于 YOLOv8 的电动车骑手头盔检测系统。系统支持图片上传、头盔目标检测、标注图展示、检测统计和测试报告生成。
 
-## 📁 项目结构
+## 项目结构
 
+```text
+Helmet-recognition-system/
+├── backend/
+│   ├── main.py                 # FastAPI 接口
+│   ├── detector.py             # YOLOv8 检测封装与图像预处理
+│   ├── best.pt                 # 头盔检测模型
+│   ├── requirements.txt        # 后端依赖
+│   └── tests/                  # pytest 单元与接口测试
+├── frontend/
+│   ├── src/                    # React 前端
+│   └── package.json
+├── scripts/
+│   ├── start-dev.ps1           # 一键启动前后端
+│   ├── stop-dev.ps1            # 停止一键启动的前后端进程
+│   ├── run_performance_test.py # 性能测试脚本
+│   ├── evaluate_dataset.py     # 外部数据集评估脚本
+│   └── generate_test_report.py # Word 测试报告生成脚本
+├── start-dev.bat               # Windows 双击启动入口
+├── test-data/                  # 外部测试数据集
+└── output/
+    ├── doc/                    # 生成的 Word 测试报告
+    └── test-results/           # 性能 CSV/JSON/图表
 ```
-头盔识别/
-├── backend/              # FastAPI 后端
-│   ├── main.py          # FastAPI 应用主文件
-│   ├── detector.py      # YOLOv8 推理类（HelmetDetector）
-│   ├── requirements.txt  # Python 依赖
-│   └── uploads/         # 上传的图片存储目录（运行时创建）
-│
-├── frontend/            # React Vite 前端
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── ImageUpload.jsx      # 文件上传组件
-│   │   │   └── ImageUpload.css      # 上传组件样式
-│   │   ├── App.jsx                  # 主应用组件
-│   │   ├── App.css                  # 应用样式
-│   │   ├── main.jsx                 # 入口文件
-│   │   └── index.css                # 全局样式
-│   ├── index.html                   # HTML 模板
-│   ├── package.json                 # Node 依赖
-│   └── vite.config.js               # Vite 配置
-│
-└── README.md            # 本文档
+
+## 环境要求
+
+- 推荐 Python 3.10 或 3.11。深度学习依赖对过新的 Python 版本可能不稳定。
+- Node.js 18+。
+- Windows、macOS 或 Linux 均可运行；当前作业环境为 Windows。
+
+## 一键启动前后端
+
+Windows 下推荐直接双击根目录的：
+
+```text
+start-dev.bat
 ```
 
-## 🚀 快速开始
+或者在 PowerShell 中运行：
 
-### 前置要求
+```powershell
+.\scripts\start-dev.ps1
+```
 
-- Python 3.8+ （后端）
-- Node.js 16+ （前端）
-- npm 或 yarn
+脚本会同时启动：
 
-### 后端设置
+- 后端接口：`http://localhost:8000`
+- 前端页面：`http://localhost:5173`
+- API 文档：`http://localhost:8000/docs`
 
-#### 1. 安装 Python 依赖
+脚本默认优先使用 `C:\Program Files\Python311\python.exe` 或 Python 3.10。当前模型依赖 Torch/YOLO，建议不要使用 Python 3.14 启动后端。
 
-```bash
+如果首次运行需要安装依赖，可以执行：
+
+```powershell
+.\scripts\start-dev.ps1 -InstallDeps
+```
+
+停止一键启动的服务：
+
+```powershell
+.\scripts\stop-dev.ps1
+```
+
+也可以直接关闭脚本打开的两个终端窗口。
+
+## 手动启动后端
+
+```powershell
 cd backend
-pip install -r requirements.txt
-```
-
-#### 2. 运行 FastAPI 服务器
-
-```bash
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 python main.py
 ```
 
-服务器将在 `http://localhost:8000` 启动。
+后端默认运行在 `http://localhost:8000`。
 
-你可以访问以下地址：
-- **API 文档**: http://localhost:8000/docs (Swagger UI)
-- **ReDoc**: http://localhost:8000/redoc
+可访问：
 
-#### 3. API 端点
+- `GET http://localhost:8000/health`
+- `POST http://localhost:8000/detect/image`
+- `POST http://localhost:8000/detect/batch`
+- Swagger 文档：`http://localhost:8000/docs`
 
-| 方法 | 端点 | 描述 |
-|------|------|------|
-| GET | `/health` | 健康检查接口，返回服务状态 |
-| POST | `/detect/image` | 上传单张图片进行头盔检测，返回检测结果和 Base64 编码的检测图 |
-| POST | `/detect/batch` | 批量上传多张图片进行检测，返回所有图片的检测结果 |
+## 手动启动前端
 
-**健康检查示例:**
-```bash
-curl http://localhost:8000/health
+```powershell
+cd frontend
+npm install
+npm run dev
 ```
 
-**单图片检测示例:**
-```bash
-curl -X POST \
-  -F "file=@/path/to/image.jpg" \
-  http://localhost:8000/detect/image
+前端默认运行在 `http://localhost:5173`。页面支持选择图片、调整置信度阈值和 IOU 阈值，并展示标注图片、检测总数、类别统计和检测框明细。
+
+## API 示例
+
+```powershell
+curl.exe -X POST `
+  -F "file=@C:\path\to\image.jpg" `
+  "http://localhost:8000/detect/image?conf_threshold=0.3&iou_threshold=0.45"
 ```
 
-**带置信度阈值的检测:**
-```bash
-curl -X POST \
-  -F "file=@/path/to/image.jpg" \
-  "http://localhost:8000/detect/image?conf_threshold=0.6"
-```
+成功响应核心字段：
 
-**响应示例:**
 ```json
 {
   "status": "success",
-  "filename": "image.jpg",
-  "filepath": "uploads/image.jpg",
-  "size": 123456,
-  "content_type": "image/jpeg",
-  "confidence_threshold": 0.5,
-  "detection_count": 5,
-  "classes": {
-    "person": 2,
-    "helmet": 3
-  },
+  "detection_count": 1,
+  "classes": {"helmet": 1},
   "detections": [
     {
-      "class": "person",
-      "confidence": 0.9524,
-      "bbox": {
-        "x1": 100,
-        "y1": 200,
-        "x2": 300,
-        "y2": 500
-      },
-      "box_coords": [100, 200, 300, 500]
-    },
-    {
       "class": "helmet",
-      "confidence": 0.8942,
-      "bbox": {
-        "x1": 120,
-        "y1": 180,
-        "x2": 200,
-        "y2": 220
-      },
-      "box_coords": [120, 180, 200, 220]
+      "confidence": 0.91,
+      "bbox": {"x1": 1, "y1": 2, "x2": 30, "y2": 40}
     }
   ],
-  "image_base64": "iVBORw0KGgoAAAANSUhEUgAAAAUA...",
-  "message": "Detection complete. Found 5 objects."
+  "image_base64": "..."
 }
 ```
 
-## 🏗️ 架构设计
+## 自动化测试
 
-### 后端架构
+单元测试和接口测试均使用 pytest。核心单元测试使用 Mock 模型，避免真实模型推理速度和识别波动影响自动化结果。
 
-项目采用 **模块化设计**，将推理逻辑与 API 接口完全分离：
-
-- **detector.py**: 独立的推理模块，包含 `HelmetDetector` 类
-  - 负责加载 YOLOv8 模型
-  - 执行图片检测推理
-  - 图片绘制和编码等操作
-  - 可单独进行单元测试和性能测试
-
-- **main.py**: FastAPI 应用层
-  - 处理 HTTP 请求/响应
-  - 调用 `HelmetDetector` 进行推理
-  - 管理文件上传和 CORS 配置
-
-### HelmetDetector 类 API
-
-```python
-from detector import HelmetDetector
-
-# 初始化检测器
-detector = HelmetDetector(model_name="yolov8n.pt")
-
-# 执行检测（返回绘制框的图片和检测结果列表）
-annotated_image, detections = detector.detect(image_array, conf_threshold=0.5)
-
-# 完整处理流程（推荐使用）
-result = detector.process_image(image_array, conf_threshold=0.5)
-# 返回: {
-#   "image_base64": "...",
-#   "detections": [...],
-#   "detection_count": 5,
-#   "classes": {"person": 2, "helmet": 3}
-# }
-
-# 图片编码
-base64_str = detector.image_to_base64(image_array, format="jpg")
-```
-
-### 前端架构
-
-- **App.jsx**: 主应用，管理上传状态和响应展示
-- **ImageUpload.jsx**: 文件上传组件，提供 UI 和文件选择逻辑
-- 前端接收 Base64 编码的检测图片，直接显示在页面上
-
-### 数据流
-
-```
-上传图片
-  ↓
-FastAPI /detect/image 接口
-  ↓
-HelmetDetector.process_image()
-  ├─ 图片解码
-  ├─ YOLO 推理
-  ├─ 绘制检测框
-  └─ Base64 编码
-  ↓
-返回 JSON (包含 Base64 图片 + 检测列表)
-  ↓
-前端显示检测图片和结果
-```
-
-### 前端设置
-
-#### 1. 安装 Node 依赖
-
-```bash
-cd frontend
-npm install
-```
-
-#### 2. 运行开发服务器
-
-```bash
-npm run dev
-```
-
-前端应用将在 `http://localhost:5173` 启动。
-
-#### 3. 构建生产版本
-
-```bash
-npm run build
-```
-
-构建输出将在 `dist/` 目录中。
-
-#### 4. 预览生产版本
-
-```bash
-npm run preview
-```
-
-## 💻 使用说明
-
-### 启动整个应用
-
-#### 方式一：分别运行（推荐开发）
-
-**终端 1 - 后端:**
-```bash
-cd backend
-python main.py
-```
-
-**终端 2 - 前端:**
-```bash
-cd frontend
-npm run dev
-```
-
-#### 方式二：后台运行
-
-**Windows (PowerShell):**
 ```powershell
-# 启动后端
-Start-Process python -ArgumentList "backend/main.py"
-
-# 启动前端
-cd frontend
-npm run dev
-```
-
-**Linux/Mac:**
-```bash
-# 启动后端（后台）
-cd backend && python main.py &
-
-# 启动前端
-cd ../frontend && npm run dev
-```
-
-### 上传图片进行检测
-
-1. 打开前端应用: http://localhost:5173
-2. 点击上传区域或拖拽图片
-3. 选择一个图片文件（JPG, PNG, GIF, WebP）
-4. 查看后端返回的 JSON 响应
-
-## 📦 依赖说明
-
-### 后端 (Python)
-
-- **fastapi**: Web 框架
-- **uvicorn**: ASGI 服务器
-- **python-multipart**: 处理文件上传
-- **ultralytics**: YOLOv8 目标检测库
-- **opencv-python**: 图像处理和绘制
-- **torch & torchvision**: 深度学习框架
-
-### 前端 (JavaScript)
-
-- **react**: UI 库
-- **react-dom**: React DOM 渲染
-- **vite**: 构建工具
-- **@vitejs/plugin-react**: React 插件
-
-## 🤖 模型配置
-
-### 可用的 YOLOv8 模型
-
-在 `backend/main.py` 中修改 `detector = HelmetDetector(model_name="...")` 可选择不同大小的模型：
-
-| 模型 | 大小 | 速度 | 精度 | 适用场景 |
-|------|------|------|------|---------|
-| yolov8n.pt | ~7MB | ⚡⚡⚡ 最快 | ★★★ | 移动端、实时处理 |
-| yolov8s.pt | ~23MB | ⚡⚡ 快 | ★★★★ | **推荐：平衡** |
-| yolov8m.pt | ~50MB | ⚡ 中等 | ★★★★★ 高 | 服务器、离线分析 |
-| yolov8l.pt | ~100MB | 慢 | ★★★★★ 很高 | 高精度需求 |
-| yolov8x.pt | ~170MB | 最慢 | ★★★★★ 最高 | 最高精度需求 |
-
-### 自定义模型
-
-如果有自己训练的头盔检测模型，可直接替换：
-
-```python
-# 在 backend/main.py 中修改
-detector = HelmetDetector(model_name="path/to/your/model.pt")
-```
-
-### 推理参数调整
-
-在 API 调用时通过 `conf_threshold` 参数调整：
-
-```bash
-# 更严格的检测（只有置信度 > 0.7 才显示）
-curl -X POST -F "file=@image.jpg" \
-  "http://localhost:8000/detect/image?conf_threshold=0.7"
-
-# 更宽松的检测（置信度 > 0.3 即显示）
-curl -X POST -F "file=@image.jpg" \
-  "http://localhost:8000/detect/image?conf_threshold=0.3"
-```
-
-### GPU 加速
-
-如有 NVIDIA GPU，修改 `backend/detector.py` 以启用 CUDA：
-
-```python
-# 第 28 行，改为：
-self.device = "cuda"  # 使用 GPU
-```
-
-## 🔧 常见问题
-
-### 问题 1: CORS 错误
-如果前端无法连接到后端，检查：
-- 后端是否在 `http://localhost:8000` 运行
-- 后端已配置 CORS 中间件（允许来自 `localhost:5173` 的请求）
-
-### 问题 2: 文件上传失败
-检查：
-- 后端 `uploads` 目录是否存在（运行时自动创建）
-- 文件是否是有效的图片格式
-- 硬盘空间是否充足
-
-### 问题 3: 前端页面显示空白
-检查：
-- Node 版本是否 >= 16
-- 是否运行了 `npm install`
-- 浏览器控制台是否有错误信息
-
-### 问题 4: Python 包安装失败
-尝试升级 pip：
-```bash
-python -m pip install --upgrade pip
-```
-
-### 问题 5: 模型加载失败或首次启动缓慢
-- **首次启动会自动下载模型**（~20-200MB，取决于选择的模型）
-- 确保网络连接正常
-- 模型缓存在 `~/.cache/yolov8/` 目录，重启后会直接加载
-- 如果下载卡住，可手动下载模型到项目目录
-
-### 问题 6: 推理速度慢
-- 使用更小的模型（yolov8n.pt）
-- 启用 GPU 加速（如有 NVIDIA GPU）
-- 调整置信度阈值以减少后处理时间
-- 检查系统资源（CPU、内存）是否充足
-
-### 问题 7: 前端无法显示检测图片
-- 检查后端是否正确返回了 `image_base64` 字段
-- 确认图片格式有效（前后端使用 JPG 编码）
-- 查看浏览器开发者工具的 Network 标签检查响应
-
-## 📝 环境配置
-
-### 后端配置
-
-在 `backend/main.py` 中可以修改：
-- **HOST**: `0.0.0.0`（允许外部访问）或 `localhost`
-- **PORT**: 默认 `8000`
-- **UPLOAD_DIR**: 上传文件存储目录，默认 `uploads`
-- **model_name**: 使用的 YOLOv8 模型，默认 `yolov8n.pt`
-
-在 `backend/detector.py` 中可以修改：
-- **self.device**: 推理设备，`"cpu"` 或 `"cuda"`（需要 GPU）
-- **检测框颜色**: 自定义绿色（头盔）和红色（其他）的 BGR 值
-
-### 前端配置
-
-在 `frontend/vite.config.js` 中可以修改：
-- **PORT**: 默认 `5173`
-- **HOST**: 默认 `localhost`
-
-## 🎯 后续功能扩展建议
-
-- [x] 集成深度学习模型进行头盔检测 ✅
-- [x] 返回 Base64 编码的检测图片 ✅
-- [x] 推理逻辑与 API 分离（独立模块） ✅
-- [ ] 添加检测结果实时展示
-- [ ] 实现用户认证和权限管理
-- [ ] 添加数据库存储检测历史
-- [ ] 实现实时处理进度反馈
-- [ ] 批量图片处理优化
-- [ ] 支持视频流实时检测
-- [ ] Web UI 美化和增强
-- [ ] Docker 容器化部署
-- [ ] 单元测试和集成测试
-
-## 🧪 单元测试（示例）
-
-由于 `HelmetDetector` 是独立模块，可以直接进行单元测试：
-
-```python
-# test_detector.py
-import cv2
-from detector import HelmetDetector
-
-def test_detector_initialization():
-    """测试检测器初始化"""
-    detector = HelmetDetector(model_name="yolov8n.pt")
-    assert detector.model is not None
-    print("✓ 检测器初始化成功")
-
-def test_image_detection():
-    """测试图片检测"""
-    detector = HelmetDetector(model_name="yolov8n.pt")
-    
-    # 加载测试图片
-    image = cv2.imread("path/to/test/image.jpg")
-    if image is None:
-        raise ValueError("Could not load test image")
-    
-    # 执行检测
-    result = detector.process_image(image, conf_threshold=0.5)
-    
-    assert "image_base64" in result
-    assert "detections" in result
-    assert "detection_count" in result
-    print(f"✓ 检测成功，找到 {result['detection_count']} 个对象")
-
-def test_base64_encoding():
-    """测试 Base64 编码"""
-    detector = HelmetDetector(model_name="yolov8n.pt")
-    image = cv2.imread("path/to/test/image.jpg")
-    
-    base64_str = detector.image_to_base64(image, format="jpg")
-    assert isinstance(base64_str, str)
-    assert len(base64_str) > 0
-    print("✓ Base64 编码成功")
-
-if __name__ == "__main__":
-    test_detector_initialization()
-    test_image_detection()
-    test_base64_encoding()
-    print("\n✅ 所有测试通过！")
-```
-
-运行测试：
-```bash
 cd backend
-python test_detector.py
+python -m pytest tests
 ```
 
-## 📄 许可证
+覆盖率命令：
 
-MIT
+```powershell
+cd backend
+python -m pytest tests --cov=. --cov-report=term-missing
+```
 
-## 👥 支持
+已覆盖场景：
 
-如有问题，请检查项目日志或提交 issue。
+- 检测器模型文件缺失
+- 灰度图、BGRA 图、空数组等预处理边界
+- Base64 编码和类别统计
+- `/health` 健康检查
+- 合法图片上传
+- 非图片、空文件、损坏图片
+- 阈值越界
+- 批量上传部分成功部分失败
+- 检测器未初始化
+
+## 性能测试
+
+性能脚本使用真实 `backend/best.pt` 模型，生成不同分辨率、暗光、强光和模糊样本，记录平均耗时与 FPS。
+
+```powershell
+python scripts/run_performance_test.py
+```
+
+输出文件：
+
+- `output/test-results/performance_results.csv`
+- `output/test-results/performance_results.json`
+- `output/test-results/performance_chart.png`
+
+## 外部数据集测试
+
+已下载 Kaggle `andrewmvd/helmet-detection` 数据集到：
+
+```text
+test-data/helmet-detection-kaggle/
+├── images/       # 764 张 PNG 图片
+└── annotations/  # 764 个 PASCAL VOC XML 标注
+```
+
+数据集类别与当前模型一致：
+
+- `With Helmet`
+- `Without Helmet`
+
+运行完整数据集评估：
+
+```powershell
+C:\Program Files\Python311\python.exe scripts\evaluate_dataset.py
+```
+
+输出文件：
+
+- `output/test-results/dataset_evaluation_details.csv`
+- `output/test-results/dataset_evaluation_summary.json`
+
+当前完整评估结果：764 张图片、1451 个标注目标，整体 Precision 为 0.718，Recall 为 0.7774，F1 为 0.7465。
+
+## 测试报告
+
+生成 Word 测试报告：
+
+```powershell
+python scripts/generate_test_report.py
+```
+
+报告输出：
+
+- `output/doc/头盔检测系统测试报告.docx`
+
+如果已经先运行性能测试，报告会自动插入性能数据表和柱状图；如果未运行，报告中会保留提示行，便于后续补跑。
+
+## 鲁棒性说明
+
+后端已对以下异常进行明确处理：
+
+- 模型文件缺失：启动阶段抛出清晰错误。
+- 检测器未初始化：接口返回 HTTP 503。
+- 非图片文件：接口返回 HTTP 400。
+- 空文件：接口返回 HTTP 400。
+- 损坏或无法解码的图片：接口返回 HTTP 400。
+- 灰度图或四通道图片：检测器统一转换为 BGR 三通道。
+
+## 演示建议
+
+2 到 3 分钟演示视频可按以下顺序录制：
+
+1. 启动后端和前端。
+2. 打开前端页面，上传正常图片并展示检测结果。
+3. 调整置信度阈值，说明检测结果可能变化。
+4. 上传非图片或损坏图片，展示异常处理。
+5. 展示 pytest 测试通过结果和 Word 测试报告。
+
+## 后续改进
+
+- 补充更多真实电动车骑手样本，统计准确率、召回率和误检率。
+- 支持视频流或摄像头实时检测。
+- 增加检测历史记录和可视化统计。
+- 引入长期运行稳定性和压力测试。

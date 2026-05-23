@@ -3,14 +3,17 @@
 负责加载 YOLOv8 模型和执行推理
 """
 
-import cv2
-import numpy as np
-from pathlib import Path
-from typing import List, Tuple, Dict, Any
 import base64
 from io import BytesIO
+from pathlib import Path
+from typing import Any, Dict, List, Tuple
+
+import cv2
+import numpy as np
 from PIL import Image
-from ultralytics import YOLO
+
+
+BASE_DIR = Path(__file__).resolve().parent
 
 
 class HelmetDetector:
@@ -27,17 +30,72 @@ class HelmetDetector:
         self.model = None
         self.device = "cpu"  # 可修改为 "cuda" 如有 GPU
         self._load_model()
+
+    def _resolve_model_path(self) -> str:
+        """Resolve local model files relative to the backend directory."""
+        model_path = Path(self.model_name)
+
+        if model_path.is_absolute():
+            if not model_path.exists():
+                raise FileNotFoundError(f"Model file not found: {model_path}")
+            return str(model_path)
+
+        local_model_path = BASE_DIR / model_path
+        if local_model_path.exists():
+            return str(local_model_path)
+
+        if model_path.suffix == ".pt":
+            raise FileNotFoundError(f"Model file not found: {local_model_path}")
+
+        return self.model_name
     
     def _load_model(self):
         """加载 YOLO 模型"""
         try:
-            print(f"Loading model: {self.model_name}")
-            self.model = YOLO(self.model_name)
+            model_path = self._resolve_model_path()
+            from ultralytics import YOLO
+
+            print(f"Loading model: {model_path}")
+            self.model = YOLO(model_path)
             self.model.to(self.device)
             print(f"Model loaded successfully on {self.device}")
         except Exception as e:
             print(f"Error loading model: {e}")
             raise
+
+    @staticmethod
+    def normalize_image(image_array: np.ndarray) -> np.ndarray:
+        """
+        Normalize supported image arrays to OpenCV BGR 3-channel format.
+
+        Supports grayscale, BGR, and BGRA images. Empty arrays or unsupported
+        channel counts are rejected so API and unit tests receive deterministic
+        errors before model inference.
+        """
+        if image_array is None:
+            raise ValueError("Image array cannot be None")
+
+        if not isinstance(image_array, np.ndarray):
+            raise TypeError("Image input must be a numpy.ndarray")
+
+        if image_array.size == 0:
+            raise ValueError("Image array cannot be empty")
+
+        if image_array.ndim == 2:
+            return cv2.cvtColor(image_array, cv2.COLOR_GRAY2BGR)
+
+        if image_array.ndim != 3:
+            raise ValueError("Image array must be 2D grayscale or 3D color")
+
+        channels = image_array.shape[2]
+        if channels == 1:
+            return cv2.cvtColor(image_array, cv2.COLOR_GRAY2BGR)
+        if channels == 3:
+            return image_array
+        if channels == 4:
+            return cv2.cvtColor(image_array, cv2.COLOR_BGRA2BGR)
+
+        raise ValueError(f"Unsupported image channel count: {channels}")
     
     def detect(self, image_array: np.ndarray, conf_threshold: float = 0.3, iou_threshold: float = 0.45) -> Tuple[np.ndarray, List[Dict[str, Any]]]:
         """
@@ -55,6 +113,8 @@ class HelmetDetector:
         """
         if self.model is None:
             raise RuntimeError("Model not loaded. Please initialize HelmetDetector first.")
+
+        image_array = self.normalize_image(image_array)
         
         # 执行推理 - 优化参数以提高检测灵敏度
         results = self.model(image_array, conf=conf_threshold, iou=iou_threshold, verbose=False)
@@ -107,15 +167,13 @@ class HelmetDetector:
             class_name: 类别名称
             conf: 置信度
         """
-        x1, y1, x2, y2 = xyxy
+        x1, y1, x2, y2 = [int(value) for value in xyxy]
         
         # 颜色定义 (BGR 格式)
         if class_name.lower() == "helmet":
             color = (0, 255, 0)  # 绿色 - 头盔
-            text_color = (0, 255, 0)
         else:
             color = (0, 0, 255)  # 红色 - 人头/其他
-            text_color = (0, 0, 255)
         
         # 绘制矩形框
         cv2.rectangle(image, (x1, y1), (x2, y2), color, 2)
@@ -130,10 +188,13 @@ class HelmetDetector:
         
         (text_width, text_height), baseline = cv2.getTextSize(label, font, font_scale, thickness)
         
+        label_top = max(0, y1 - text_height - baseline - 5)
+        text_y = max(text_height + 3, y1 - baseline - 3)
+
         # 绘制标签背景
         cv2.rectangle(
             image,
-            (x1, y1 - text_height - baseline - 5),
+            (x1, label_top),
             (x1 + text_width + 5, y1),
             color,
             -1
@@ -143,7 +204,7 @@ class HelmetDetector:
         cv2.putText(
             image,
             label,
-            (x1 + 3, y1 - baseline - 3),
+            (x1 + 3, text_y),
             font,
             font_scale,
             (255, 255, 255),  # 白色文字
@@ -161,6 +222,8 @@ class HelmetDetector:
         Returns:
             str: Base64 编码的图片字符串
         """
+        image_array = self.normalize_image(image_array)
+
         # 将 BGR 转换为 RGB
         image_rgb = cv2.cvtColor(image_array, cv2.COLOR_BGR2RGB)
         

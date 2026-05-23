@@ -1,11 +1,11 @@
 from fastapi import FastAPI, File, UploadFile, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from pathlib import Path
-import os
+from uuid import uuid4
+
 import cv2
 import numpy as np
-from io import BytesIO
+
 from detector import HelmetDetector
 
 app = FastAPI(title="Helmet Detection API")
@@ -20,22 +20,61 @@ app.add_middleware(
 )
 
 # 创建上传目录
-UPLOAD_DIR = Path("uploads")
+BASE_DIR = Path(__file__).resolve().parent
+UPLOAD_DIR = BASE_DIR / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)
+MODEL_PATH = BASE_DIR / "best.pt"
 
 # 全局初始化检测器（启动时加载模型）
 detector = None
+
 
 @app.on_event("startup")
 async def startup_event():
     """应用启动时初始化检测器"""
     global detector
     try:
-        detector = HelmetDetector(model_name="best.pt")
+        detector = HelmetDetector(model_name=str(MODEL_PATH))
         print("✓ Helmet Detector initialized successfully")
     except Exception as e:
         print(f"✗ Failed to initialize Helmet Detector: {e}")
         raise
+
+
+def _ensure_detector_ready():
+    if detector is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Detector not initialized. Please restart the server."
+        )
+
+
+async def _read_image_upload(file: UploadFile) -> tuple[bytes, np.ndarray]:
+    """Validate and decode an uploaded image."""
+    content_type = file.content_type or ""
+    if not content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Only image files are allowed")
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="Uploaded image file is empty")
+
+    nparr = np.frombuffer(content, np.uint8)
+    image = cv2.imdecode(nparr, cv2.IMREAD_UNCHANGED)
+    if image is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Failed to decode image. Please ensure it's a valid image file."
+        )
+
+    return content, image
+
+
+def _save_upload(filename: str | None, content: bytes) -> Path:
+    safe_name = Path(filename or "upload.jpg").name
+    file_path = UPLOAD_DIR / f"{uuid4().hex}_{safe_name}"
+    file_path.write_bytes(content)
+    return file_path
 
 
 @app.get("/health")
@@ -64,41 +103,14 @@ async def detect_image(
         包含检测结果图片 (Base64) 和检测物体列表的 JSON 响应
     """
     try:
-        if detector is None:
-            raise HTTPException(
-                status_code=503,
-                detail="Detector not initialized. Please restart the server."
-            )
-        
-        # 验证文件格式
-        if not file.content_type.startswith("image/"):
-            raise HTTPException(
-                status_code=400,
-                detail="Only image files are allowed"
-            )
-        
-        # 读取图片内容
-        content = await file.read()
-        
-        # 将字节转换为 numpy 数组
-        nparr = np.frombuffer(content, np.uint8)
-        
-        # 使用 OpenCV 解码图片
-        image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        
-        if image is None:
-            raise HTTPException(
-                status_code=400,
-                detail="Failed to decode image. Please ensure it's a valid image file."
-            )
+        _ensure_detector_ready()
+        content, image = await _read_image_upload(file)
         
         # 执行检测
         result = detector.process_image(image, conf_threshold=conf_threshold, iou_threshold=iou_threshold)
         
         # 保存原始上传文件
-        file_path = UPLOAD_DIR / file.filename
-        with open(file_path, "wb") as f:
-            f.write(content)
+        file_path = _save_upload(file.filename, content)
         
         return {
             "status": "success",
@@ -140,49 +152,19 @@ async def detect_batch(
         包含每张图片的检测结果列表
     """
     try:
-        if detector is None:
-            raise HTTPException(
-                status_code=503,
-                detail="Detector not initialized. Please restart the server."
-            )
+        _ensure_detector_ready()
         
         results = []
         
         for file in files:
-            # 验证文件格式
-            if not file.content_type.startswith("image/"):
-                results.append({
-                    "filename": file.filename,
-                    "status": "error",
-                    "message": "Only image files are allowed"
-                })
-                continue
-            
             try:
-                # 读取图片内容
-                content = await file.read()
-                
-                # 将字节转换为 numpy 数组
-                nparr = np.frombuffer(content, np.uint8)
-                
-                # 使用 OpenCV 解码图片
-                image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-                
-                if image is None:
-                    results.append({
-                        "filename": file.filename,
-                        "status": "error",
-                        "message": "Failed to decode image"
-                    })
-                    continue
+                content, image = await _read_image_upload(file)
                 
                 # 执行检测
                 result = detector.process_image(image, conf_threshold=conf_threshold, iou_threshold=iou_threshold)
                 
                 # 保存原始上传文件
-                file_path = UPLOAD_DIR / file.filename
-                with open(file_path, "wb") as f:
-                    f.write(content)
+                file_path = _save_upload(file.filename, content)
                 
                 results.append({
                     "filename": file.filename,
@@ -194,6 +176,12 @@ async def detect_batch(
                     "image_base64": result["image_base64"]
                 })
             
+            except HTTPException as e:
+                results.append({
+                    "filename": file.filename,
+                    "status": "error",
+                    "message": e.detail
+                })
             except Exception as e:
                 results.append({
                     "filename": file.filename,
