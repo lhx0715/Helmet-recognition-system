@@ -100,3 +100,16 @@ def test_image_to_base64_accepts_bgra_image():
 
     assert isinstance(encoded, str)
     assert base64.b64decode(encoded)
+
+
+def test_image_to_base64_accepts_uint16_color_image():
+    detector = make_detector_with_fake_model()
+    image = np.full((8, 8, 3), 4095, dtype=np.uint16)
+
+    normalized = HelmetDetector.normalize_image(image)
+    encoded = detector.image_to_base64(image)
+
+    assert normalized.dtype == np.uint8
+    assert normalized.shape == (8, 8, 3)
+    assert isinstance(encoded, str)
+    assert base64.b64decode(encoded)

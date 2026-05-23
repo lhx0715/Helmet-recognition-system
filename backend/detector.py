@@ -68,9 +68,9 @@ class HelmetDetector:
         """
         Normalize supported image arrays to OpenCV BGR 3-channel format.
 
-        Supports grayscale, BGR, and BGRA images. Empty arrays or unsupported
-        channel counts are rejected so API and unit tests receive deterministic
-        errors before model inference.
+        Supports grayscale, BGR, and BGRA images. Empty arrays, unsupported
+        channel counts, and unsupported dtypes are rejected or converted before
+        model inference so downstream PIL/OpenCV code always receives uint8 BGR.
         """
         if image_array is None:
             raise ValueError("Image array cannot be None")
@@ -80,6 +80,8 @@ class HelmetDetector:
 
         if image_array.size == 0:
             raise ValueError("Image array cannot be empty")
+
+        image_array = HelmetDetector._ensure_uint8(image_array)
 
         if image_array.ndim == 2:
             return cv2.cvtColor(image_array, cv2.COLOR_GRAY2BGR)
@@ -96,6 +98,36 @@ class HelmetDetector:
             return cv2.cvtColor(image_array, cv2.COLOR_BGRA2BGR)
 
         raise ValueError(f"Unsupported image channel count: {channels}")
+
+    @staticmethod
+    def _ensure_uint8(image_array: np.ndarray) -> np.ndarray:
+        """Convert common decoded image dtypes to uint8 for model/PIL support."""
+        if image_array.dtype == np.uint8:
+            return image_array
+
+        if image_array.dtype == np.bool_:
+            return image_array.astype(np.uint8) * 255
+
+        if np.issubdtype(image_array.dtype, np.integer):
+            min_value = int(image_array.min())
+            max_value = int(image_array.max())
+            if min_value >= 0 and max_value <= 255:
+                return image_array.astype(np.uint8)
+
+            if max_value == min_value:
+                fill_value = 255 if max_value > 0 else 0
+                return np.full(image_array.shape, fill_value, dtype=np.uint8)
+
+            scaled = (image_array.astype(np.float32) - min_value) * (255.0 / (max_value - min_value))
+            return np.clip(scaled, 0, 255).astype(np.uint8)
+
+        if np.issubdtype(image_array.dtype, np.floating):
+            clean = np.nan_to_num(image_array.astype(np.float32), nan=0.0, posinf=255.0, neginf=0.0)
+            if clean.size and clean.max() <= 1.0 and clean.min() >= 0.0:
+                clean = clean * 255.0
+            return np.clip(clean, 0, 255).astype(np.uint8)
+
+        raise TypeError(f"Unsupported image dtype: {image_array.dtype}")
     
     def detect(self, image_array: np.ndarray, conf_threshold: float = 0.3, iou_threshold: float = 0.45) -> Tuple[np.ndarray, List[Dict[str, Any]]]:
         """
